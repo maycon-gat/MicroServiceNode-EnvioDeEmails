@@ -1,47 +1,68 @@
-const nodemailer = require('nodemailer');
+let nodemailer = require('nodemailer');
+let fs = require('fs');
+let path = require("path");
+
 
 module.exports = {
     async sendEmail(req, res) {
 
-        const retornoJson = {};
+        let htmlFile = new Promise((resolve, reject) => {
 
-        const remetente = nodemailer.createTransport({
-            host: "smtp.gmail.com",
-            port: 587,
-            secure: false,
-            auth: {
-                user: "maycon@carzen.com.br",
-                pass: "rpz102030"
-            },
-            tls: {
-                rejectUnauthorized: false
-            }
-        });
-
-        const emailEnviado = {
-            from: "maycon@carzen.com.br",
-            to: "maycon.henrique.gat@gmail.com",
-            subject: "Enviando Email com Node.js",
-            text: "Estou te enviando este email com node.js",
-        }
-
-        const promise = new Promise((res, rej) => {
-
-            remetente.sendMail(emailEnviado, async function (error, info) {
-                if (error) {
-                    retornoJson["erro"] = `${error}`;
-                    rej(retornoJson)
+            fs.readFile(path.resolve(req.file.destination, req.file.filename), 'utf-8', function (err, html) {
+                if (err) {
+                    reject(err);
                 } else {
-                    retornoJson["info"] = `${info.response}`;
-                    res(retornoJson)
+                    resolve(html);
                 }
-            });
+            })
         })
 
-        const responseEmail = await promise
-            .then((r) => {
-                return r
+        htmlFile.then(async (html) => {
+
+
+            let remetente = nodemailer.createTransport({
+                host: process.env.EMAIL_HOST,
+                port: process.env.EMAIL_PORTA_SMTP,
+                secure: false,
+                auth: {
+                    user: process.env.EMAIL_LOGIN,
+                    pass: process.env.EMAIL_SENHA
+                },
+                tls: {
+                    rejectUnauthorized: false
+                }
+            });
+
+            let emailEnviado = {
+                from: process.env.EMAIL_LOGIN,
+                to: "emailqualquer@gmail.com",
+                subject: "Enviando Email com Node.js",
+                html: html,
+            }
+
+            let enviarEmail = new Promise((resolve, reject) => {
+
+                let retornoJson = {};
+
+                remetente.sendMail(emailEnviado, async function (error, info) {
+                    if (error) {
+                        retornoJson["erro"] = `${error}`;
+                        reject(retornoJson)
+                    } else {
+                        retornoJson["info"] = `${info.response}`;
+                        resolve(retornoJson)
+                    }
+                });
             })
-        res.status(200).json(responseEmail)
+
+            await enviarEmail
+                .then((responseEmail) => {
+                    res.status(200).json(responseEmail)
+                })
+                .catch((erro) => {
+                    res.status(400).json(erro)
+                })
+        })
+
     }
 }
